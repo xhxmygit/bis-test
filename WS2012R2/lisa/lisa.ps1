@@ -227,7 +227,7 @@ $testDir = $null
 $xmlConfig = $null
 
 $testStartTime = [DateTime]::Now
-
+Import-Module .\UtilLibs.psm1 -Force
 
 ########################################################################
 #
@@ -765,11 +765,35 @@ function RunTests ([String] $xmlFilename )
         LogMsg 3 "Info : Running Lisa Init script '$($xmlConfig.Config.Global.LisaInitScript)'"
         $initResults = RunInitShutdownScript $xmlConfig.Config.Global.LisaInitScript $xmlFilename
     }
+	
+	# Start to generate test report
+	if( $testReport -eq $null )
+	{
+		$testReport = "$pwd\report.xml"
+	}
+	StartLogReport $testReport 
+	$Global:testsuite = StartLogTestSuite "BIS" $Script:testStartTime
+	$Global:testSuiteResultDetails=@{"totalTc"=0;"totalPassTc"=0;"totalFailTc"=0;"totalAbortedTc"=0;"totalElapseTime"=0}
+	$startTime = [Datetime]::Now.ToUniversalTime()
 
     LogMsg 10 "Info : Calling RunICTests"
     . .\stateEngine.ps1
     RunICTests $xmlConfig
 
+	# Finish to generate test report	
+	$endTime = [Datetime]::Now.ToUniversalTime()
+	$testSuiteResultDetails.totalElapseTime = ($endTime-$startTime).TotalSeconds
+	FinishLogTestSuite $testsuite $testSuiteResultDetails.totalElapseTime
+	FinishLogReport
+	Write-Host $testSuiteResultDetails.totalPassTc,$testSuiteResultDetails.totalFailTc,$testSuiteResultDetails.totalAbortedTc
+
+	# Compress logs
+	if( $reportCompressFile -eq $null )
+	{
+		$reportCompressFile = "$pwd\logs.zip"
+	}
+	CICompressFolderToZip "$testDir" $reportCompressFile
+	
     #
     # email the test results if requested
     #
@@ -790,6 +814,13 @@ function RunTests ([String] $xmlFilename )
 
     LogMsg 0 "$summary"
 
+    $icaLogFile = Join-Path -path $testDir -childPath "ica.log"
+    $runXmlFile = Join-Path -path $pwd -childPath $xmlFilename
+    $pythonFile = Join-Path -path $pwd -childPath "Infrastructure\lisa-parser\lisa_parser\lisa_parser.py"
+    $databaseConfig = "C:\Config\db.config"
+    $command = "python ${pythonFile} -c ${databaseConfig} -k ${runXmlFile} ${icaLogFile}"
+    Write-Host ("Insert results into database " + $command)
+    cmd /c $command
     return $true
 }
 

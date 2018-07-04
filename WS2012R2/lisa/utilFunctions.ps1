@@ -427,7 +427,7 @@ function SummaryToString([XML] $xmlConfig, [DateTime] $startTime, [string] $xmlF
 	$str += "Logs can be found at \\$($hostname)\LisaTestResults\" + $fname + "-" + $startTime.ToString("yyyyMMdd-HHmmss") + "<br /><br />"
 	
     $str += "</pre><br />"
-
+    
     return $str
 }
 
@@ -1230,6 +1230,11 @@ function UpdateCurrentTest([System.Xml.XmlElement] $vm, [XML] $xmlData)
     {
         $nextTest = GetNextTest $vm $xmlData
         $vm.currentTest = [string] $nextTest
+		if($vm.currentTest -ne 'done')
+		{
+			$Global:caseStart = [DateTime]::Now
+			$Global:testcase = StartLogTestCase $testsuite "$($vm.currentTest)" "BIS.$($vm.suite)"
+		}		
         $testData = GetTestData $vm.currentTest $xmlData
         if ($testData.maxIterations)
         {
@@ -1641,3 +1646,43 @@ function GetIPv4([String] $vmName, [String] $server)
 
     return $addr
 }
+
+
+#######################################################################
+#
+# DeleteVHDInFile()
+#
+#######################################################################
+function DeleteVHDInFile([String] $FilePath)
+{
+	$status = Test-Path $FilePath  
+	if( $status -eq "True" )
+	{
+		$vhdLists = Get-Content $FilePath
+		$lists = $vhdLists.Split(',')
+		foreach ($vhd in $lists)
+		{
+			if ($vhd.Trim().Length -eq 0)
+			{
+				continue
+			}
+			
+			#Only delete .vhd or .vhdx files for safty
+			if( $vhd.EndsWith(".vhd")  -or $vhd.EndsWith(".vhdx") )
+			{
+				$status = Test-Path $vhd  
+				if( $status -eq "True" )
+				{
+					"Start to delete the $vhd for saving disk space."
+					Remove-Item $vhd  -Force
+					"Delete the $vhd successffully."
+				}
+			}
+		}
+
+		Remove-Item $FilePath  -Force
+	}
+	
+	return 0
+}
+

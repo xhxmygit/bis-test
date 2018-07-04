@@ -361,19 +361,24 @@ function CreateHardDrive( [string] $vmName, [string] $server, [System.Boolean] $
         # Check for parent vhdx
         #
          $parentVhdName = $defaultVhdPath + $ParentName
-         $parentInfo = GetRemoteFileInfo -filename $parentVhdName -server $hvServer 
+         $parentInfo = GetRemoteFileInfo -filename $parentVhdName -server $server 
          if (-not $parentInfo)
          {
-          Write-Output "Error: parent VHDX does not exist: ${parentVhdName}"
-          return $retVal
+			Write-Output "Parent VHDX does not exist: ${parentVhdName}, so create it."
+			$size = [uint64](1024 * 1024 * 8)
+			New-VHD -Path $parentVhdName  -ComputerName $server -SizeBytes $size -Dynamic
          }
          
-   #
-   # Adding vhdx child disk
-   #
-
-	$vhdName = $defaultVhdPath + $vmName + "-" + $controllerType + "-" + $controllerID + "-" + $lun + "-" + $vhdType + ".vhdx" 
-
+        #
+        # Adding vhdx child disk
+        #
+		$currentTime = Get-Date -Format 'yyyymdhms'
+		$vhdName = $defaultVhdPath + $vmName + "-" + $controllerType + "-" + $controllerID + "-" + $lun + "-" + $vhdType + "-" + $currentTime + ".vhdx" 
+		
+		#Record the path of the new vhd
+		$newVHDListsPath =  ".\NewVhdxLists.log"  #Note: this file path must be as same as the path in RemoveVhdxHardDisk.ps1
+		$listContent = $vhdName + ","
+		$listContent | Out-File $newVHDListsPath -NoClobber -Append
 
         $fileInfo = GetRemoteFileInfo -filename $vhdName -server $server
         if (-not $fileInfo)

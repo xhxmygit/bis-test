@@ -235,28 +235,26 @@ function DeleteHardDrive([string] $vmName, [string] $hvServer, [string]$controll
     #
     if ($scsi -and $controller)
     {
-        
-   
-    if($ide)
-    {
-        $controller = Get-VMIdeController $vmName -ComputerName $hvServer -ControllerNumber $controllerID
-    }
-    if($scsi)
-    {
-        $controller = Get-VMScsiController $vmName -ComputerName $hvServer -ControllerNumber $controllerID
-    }
-
-        $drives = Get-VMHardDiskDrive $controller
-        if ($drives)
-        {
-            write-output "Info : Controller $controllertype $controllerID was not removed."
-            write-output "       Additional drives are still attached"
-        }
-        else
-        {
-            write-output "Info : Removing $controllerType $controllerID"
-            $sts = Remove-VMSCSIController $vmName -ComputerName $hvServer -ControllerNumber $controllerID -Confirm:$false
-        }
+		if($ide)
+		{
+			$controller = Get-VMIdeController $vmName -ComputerName $hvServer -ControllerNumber $controllerID
+		}
+		
+		if($scsi)
+		{
+			$controller = Get-VMScsiController $vmName -ComputerName $hvServer -ControllerNumber $controllerID
+		}
+	
+		$drive = Get-VMHardDiskDrive $controller
+		if ($drive)
+		{
+			write-output "Info : Removing $controllerType $controllerID $lun"
+			$sts = Remove-VMHardDiskDrive $drive
+		}
+		else
+		{
+			write-output "Warn : Drive $controllerType $controllerID,$Lun does not exist"
+		}
     }
 
     $retVal = $True
@@ -355,6 +353,18 @@ foreach ($p in $params)
     {
         $retVal = $true
     }
+}
+
+
+#
+#Delete the vhd/vhdx file from the local disk for saving space
+#
+. .\utilFunctions.ps1 | out-null
+$newVHDListsPath = ".\NewVhdLists.log" #Note: this file path must be as same as the path in AddHardDisk.ps1
+$status = Test-Path $newVHDListsPath  
+if( $status -eq "True" )
+{
+	DeleteVHDInFile (Resolve-Path $newVHDListsPath).Path
 }
 
 "RemoveHardDisk returning $retVal"

@@ -175,6 +175,41 @@ function GetUnixVMTime([String] $sshKey, [String] $ipv4)
 }
 
 
+
+
+#####################################################################
+#
+# UpdateVmTimezoneBasedOnHost()
+#
+#####################################################################
+function UpdateVmTimezoneBasedOnHost([String] $sshKey, [String] $ipv4)
+{
+	#In our test env, the usual time zone is Pacific or China Standard Time
+	$command = ""
+	$localTimeZone = (Get-WmiObject win32_timezone).StandardName
+	if( $localTimeZone  -like "Pacific*" )
+	{
+		$command = "cp  /usr/share/zoneinfo/PST8PDT  /etc/localtime"
+	}
+
+	if( $localTimeZone  -like "China*" )
+	{
+		$command = "cp  /usr/share/zoneinfo/Asia/Shanghai  /etc/localtime"
+	}
+	
+	# Add other time zone if it's needed
+	
+	if( !$command )
+	{
+		"Error: Time zone is not updated"
+		return 1
+	}
+
+	"The command is $command"
+	AskVMForTime ${sshKey} $ipv4 $command
+
+}
+
 #####################################################################
 #
 # Main script body
@@ -215,10 +250,10 @@ if (-not $testParams)
 "Parsing test parameters"
 $sshKey = $null
 $ipv4 = $null
-$maxTimeDiff = "1"
+$maxTimeDiff = "5.1"  #The time in vm will be synced with host every 5 seconds
 $rootDir = $null
 $tcCovered = "unknown"
-$testDelay = "0"
+$testDelay = "10"
 
 $params = $testParams.Split(";")
 foreach($p in $params)
@@ -286,7 +321,7 @@ if (-not $ipv4)
     $ipv4 = GetIPv4 $vmName $hvServer
     if (-not $ipv4)
     {
-        "Error: Unable to determin the IPv4 address for VM ${vmName}"
+        "Error: Unable to determin the IPv4 address for VM ${vmName}"  >> $summaryLog
         return $False
     }
 }
@@ -308,55 +343,73 @@ if ($testDelay -ne "0")
     Start-Sleep -S $testDelay
 }
 
-#
-# Get a time string from the VM, then convert the Unix time string into a .NET DateTime object
-#
-"Get time from Unix VM"
-$unixTimeStr = GetUnixVMTime -sshKey "ssh\${sshKey}" -ipv4 $ipv4
-if (-not $unixTimeStr)
-{
-    "Error: Unable to get date/time string from VM"
-    return $False
-}
 
-#
-# Get our time
-#
-$windowsTime = [DateTime]::Now
+UpdateVmTimezoneBasedOnHost -sshKey "ssh\${sshKey}" -ipv4 $ipv4
 
-#
-# Convert the Unix tiime string into a DateTime object
-#
-$unixTime = [DateTime]::Parse($unixTimeStr)
+$i = 0
+$totalTimes = 3
+do{
+	$i += 1
+	#
+	# Get a time string from the VM, then convert the Unix time string into a .NET DateTime object
+	#
+	"Get time from Unix VM"
+	$unixTimeStr = GetUnixVMTime -sshKey "ssh\${sshKey}" -ipv4 $ipv4
+	if (-not $unixTimeStr)
+	{
+		"Error: Unable to get date/time string from VM" >> $summaryLog
+		return $False
+	}
 
-#
-# Compute the timespan, then convert it to the absolute value of the total difference in seconds
-#
-"Compute time difference between localhost and Linux VM"
-$diffInSeconds = $null
-$timeSpan = $windowsTime - $unixTime
-if (-not $timeSpan)
-{
-    "Error: Unable to compute timespan"
-    return $False
-}
+	#
+	# Get our time
+	#
+	$windowsTime = [DateTime]::Now
 
-$diffInSeconds = [Math]::Abs($timeSpan.TotalSeconds)
+	#
+	# Convert the Unix tiime string into a DateTime object
+	#
+	$unixTime = [DateTime]::Parse($unixTimeStr)
 
-#
-# Display the data
-#
-"Windows time: $($windowsTime.ToString())"
-"Unix time: $($unixTime.ToString())"
-"Difference: ${diffInSeconds}"
+	#
+	# Compute the timespan, then convert it to the absolute value of the total difference in seconds
+	#
+	"Compute time difference between localhost and Linux VM"
+	$diffInSeconds = $null
+	$timeSpan = $windowsTime - $unixTime
+	if (-not $timeSpan)
+	{
+		"Error: Unable to compute timespan"  >> $summaryLog
+		return $False
+	}
 
-$msg = "Test case FAILED.  Time difference greater than ${maxTimeDiff} seconds"
-if ($diffInSeconds -and $diffInSeconds -lt $maxTimeDiff)
-{
-    $msg = "Test case passed"
-    $retVal = $true
-}
+	$diffInSeconds = [Math]::Abs($timeSpan.TotalSeconds)
 
-$msg
+	#
+	# Display the data
+	#
+	"Windows time: $($windowsTime.ToString())" >> $summaryLog
+	"Unix time: $($unixTime.ToString())"  >> $summaryLog
+	"Difference: ${diffInSeconds}"  >> $summaryLog
+
+	if ($diffInSeconds -and $diffInSeconds -lt $maxTimeDiff)
+	{
+		$msg = "Test case passed at ${i}/${totalTimes}."
+		$msg
+		$msg >> $summaryLog
+		$retVal = $true
+	}
+	else
+	{
+		$msg = "Test case FAILED. Time difference is greater than ${maxTimeDiff} seconds."
+		$msg
+		$msg >> $summaryLog
+		$retVal = $False
+		break
+	}
+	
+	sleep 10
+	
+}while( $i -lt $totalTimes)
 
 return $retVal
