@@ -27,7 +27,7 @@
         <suite>    
             <suiteName>debug</suiteName>
             <suiteTests>
-                <suiteTest>BuildKernel</suiteTest>	
+                <suiteTest>Heartbeat</suiteTest>	
             </suiteTests>
         </suite>   
                 
