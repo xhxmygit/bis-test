@@ -2725,7 +2725,7 @@
     <VMs>        
         <vm>
             <hvServer>localhost</hvServer>
-            <vmName>freebsd112release20180628</vmName>
+            <vmName>FreebsdStable11</vmName>
             <os>FreeBSD</os>
             <ipv4></ipv4>
             <sshKey>lisa_id_rsa.ppk</sshKey>
