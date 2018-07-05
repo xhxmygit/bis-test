@@ -7,6 +7,5 @@ cd ..
 cd ..
 "Run test cases done"
 
-return 1
 
 

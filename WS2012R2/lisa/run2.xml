@@ -27,7 +27,7 @@
         <suite>    
             <suiteName>debug</suiteName>
             <suiteTests>
-                <suiteTest>Heartbeat</suiteTest>	
+                <suiteTest>PrivateSynthNetAdapter</suiteTest>	
             </suiteTests>
         </suite>   
                 
